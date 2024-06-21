@@ -9,6 +9,7 @@ from telegram.error import NetworkError, TimedOut
 from datetime import datetime
 import pytz
 from functools import wraps
+APPROVE_EMOJI = "✅"
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -125,7 +126,8 @@ async def print_list(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
         return
     message = "Playing List:\n"
     for i, player in enumerate(playing_list, 1):
-        message += f"{i}. @{player}\n"
+        approval_status = f" {APPROVE_EMOJI}" if approvals.get(player, False) else ""
+        message += f"{i}. @{player}{approval_status}\n"
     message += "\nWaiting List:\n"
     for i, player in enumerate(waiting_list, 1):
         message += f"{i}. @{player}\n"
@@ -144,7 +146,7 @@ async def approve(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     
     if user_name in playing_list:
         approvals[user_name] = True
-        await update.message.reply_text(f"Your attendance has been approved, {user.first_name}.")
+        await update.message.reply_text(f"Your attendance has been approved, {user.first_name}. {APPROVE_EMOJI}")
     else:
         await update.message.reply_text("You're not in the playing list.")
     logger.info(f"Approve command used by {user_name}")
@@ -168,7 +170,7 @@ async def clear_list(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
     game_created = False
     await update.message.reply_text("All lists have been cleared. Use /create_game to start a new game.")
     logger.info(f"Clear list command used by @{update.effective_user.username}")
-
+    
 async def send_reminders(context: ContextTypes.DEFAULT_TYPE) -> None:
     now = datetime.now(pytz.timezone('Asia/Jerusalem'))
     if now.weekday() == 3 and now.hour >= 10 and now.hour < 16:  # Thursday between 10 AM and 4 PM
