@@ -9,6 +9,8 @@ from telegram.error import NetworkError, TimedOut
 from datetime import datetime
 import pytz
 from functools import wraps
+from telegram import ChatMember
+
 APPROVE_EMOJI = "✅"
 BALL_EMOJI = "⚽"
 bringing_ball = set()
@@ -61,6 +63,23 @@ async def check_telegram_api(bot):
         logger.error(f"Telegram API is not responsive: {e}")
         return False
 
+def admin_only(func):
+    @wraps(func)
+    async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        user_id = update.effective_user.id
+        chat_id = GROUP_CHAT_ID
+        try:
+            user = await context.bot.get_chat_member(chat_id, user_id)
+            if user.status not in [ChatMember.ADMINISTRATOR, ChatMember.OWNER]:
+                await update.message.reply_text("This command is only available to group administrators.")
+                return
+        except Exception as e:
+            logger.error(f"Error checking admin status: {e}")
+            await update.message.reply_text("An error occurred while checking your permissions.")
+            return
+        return await func(update, context)
+    return wrapper
+
 def private_chat_only(func):
     @wraps(func)
     async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -107,6 +126,8 @@ async def remove(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     
     if user_name in playing_list:
         playing_list.remove(user_name)
+        approvals.pop(user_name, None)  # Remove from approvals list
+        bringing_ball.discard(user_name)  # Remove from bringing_ball set
         await update.message.reply_text(f"You've been removed from the playing list, {user.first_name}.")
         if waiting_list:
             moved_player = waiting_list.pop(0)
@@ -156,6 +177,7 @@ async def approve(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     logger.info(f"Approve command used by {user_name}")
 
 @private_chat_only
+@admin_only
 async def create_game(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     global playing_list, waiting_list, approvals, bringing_ball, game_created
     if game_created:
@@ -168,8 +190,9 @@ async def create_game(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     game_created = True
     await update.message.reply_text("New game created for Thursday 6:30-8:30 PM. Lists have been reset.")
     logger.info(f"Create game command used by @{update.effective_user.username}")
-    
+
 @private_chat_only
+@admin_only
 async def clear_list(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     global playing_list, waiting_list, approvals, bringing_ball, game_created
     playing_list = []
@@ -179,7 +202,7 @@ async def clear_list(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
     game_created = False
     await update.message.reply_text("All lists have been cleared. Use /create_game to start a new game.")
     logger.info(f"Clear list command used by @{update.effective_user.username}")
-
+    
 @private_chat_only
 async def bring_ball(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     global game_created
