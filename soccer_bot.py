@@ -247,6 +247,7 @@ async def main():
             logger.error("Cannot start bot due to Telegram API issues.")
             return
 
+        # Add your command handlers here
         application.add_handler(CommandHandler("register", register))
         application.add_handler(CommandHandler("remove", remove))
         application.add_handler(CommandHandler("print_list", print_list))
@@ -279,8 +280,10 @@ async def main():
                                                 drop_pending_updates=True)
         logger.info("Bot is polling for updates...")
         
-        # Run the bot until you press Ctrl-C
-        await application.idle()
+        # Instead of using idle(), we'll use an infinite loop
+        while True:
+            await asyncio.sleep(1)
+
     except NetworkError as e:
         logger.error(f"Network error occurred: {e}")
     except TimedOut as e:
@@ -295,7 +298,6 @@ async def main():
                 logger.info("Application has been stopped and shut down.")
             except Exception as e:
                 logger.error(f"Error during application shutdown: {e}")
-
 if __name__ == '__main__':
     retry_count = 0
     max_retries = 5
@@ -310,7 +312,9 @@ if __name__ == '__main__':
             logger.error(f"Unhandled exception: {e}")
             retry_count += 1
             logger.info(f"Retrying in 10 seconds... (Attempt {retry_count}/{max_retries})")
-            asyncio.run(asyncio.sleep(10))
+            # Use a synchronous sleep here since we're outside of an async context
+            import time
+            time.sleep(10)
     
     if retry_count == max_retries:
         logger.error("Max retries reached. Bot could not be started.")
