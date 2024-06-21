@@ -5,11 +5,15 @@ from datetime import datetime
 import pytz
 from functools import wraps
 import asyncio
+import os 
 
-import os
 TOKEN = os.environ.get('7303862349:AAEdIRwQddZI026xqxt3DjnUW7w_avcQPQg')
-GROUP_CHAT_ID = os.environ.get('-4262387584')
+if not TOKEN:
+    raise ValueError("No BOT_TOKEN environment variable set")
 
+GROUP_CHAT_ID = os.environ.get('-4262387584')
+if not GROUP_CHAT_ID:
+    raise ValueError("No GROUP_CHAT_ID environment variable set")
 # Enable logging
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 
@@ -196,24 +200,32 @@ async def set_commands(bot):
     await bot.set_my_commands(commands)
 
 async def main():
-    application = ApplicationBuilder().token(TOKEN).build()
+    logging.info(f"Starting bot with token: {TOKEN[:5]}...")  # Only log first 5 characters for security
+    try:        
+        application = ApplicationBuilder().token(TOKEN).build()
 
-    application.add_handler(CommandHandler("register", register))
-    application.add_handler(CommandHandler("remove", remove))
-    application.add_handler(CommandHandler("print_list", print_list))
-    application.add_handler(CommandHandler("approve", approve))
-    application.add_handler(CommandHandler("create_game", create_game))
-    application.add_handler(CommandHandler("clear_list", clear_list))
-    application.add_handler(CommandHandler("send_reminder", manual_reminder))
-    application.add_handler(CommandHandler("get_chat_id", get_chat_id))
-    
-    await set_commands(application.bot)
+        application.add_handler(CommandHandler("register", register))
+        application.add_handler(CommandHandler("remove", remove))
+        application.add_handler(CommandHandler("print_list", print_list))
+        application.add_handler(CommandHandler("approve", approve))
+        application.add_handler(CommandHandler("create_game", create_game))
+        application.add_handler(CommandHandler("clear_list", clear_list))
+        application.add_handler(CommandHandler("send_reminder", manual_reminder))
+        application.add_handler(CommandHandler("get_chat_id", get_chat_id))
+        
+        await set_commands(application.bot)
 
-    # Set up job queue for reminders
-    job_queue = application.job_queue
-    job_queue.run_repeating(send_reminders, interval=7200, first=10)  # Runs every 2 hours
+        # Set up job queue for reminders
+        job_queue = application.job_queue
+        job_queue.run_repeating(send_reminders, interval=7200, first=10)  # Runs every 2 hours
 
-    await application.run_polling()
+        await application.run_polling()
+
+        logging.info("Bot started successfully")
+        await application.run_polling()
+    except Exception as e:
+            logging.error(f"Error starting bot: {e}")
+            raise
 
 if __name__ == '__main__':
     asyncio.run(main())
