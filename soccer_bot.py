@@ -8,6 +8,10 @@ from functools import wraps
 import asyncio
 import sys
 import os
+import asyncio
+from telegram.error import NetworkError, TimedOut
+from telegram.ext import ApplicationBuilder, CommandHandler
+import logging
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -214,6 +218,9 @@ async def set_commands_with_retry(bot, max_retries=3):
             if attempt < max_retries - 1:
                 await asyncio.sleep(5)  # Wait 5 seconds before retrying
     logging.error("Failed to set bot commands after maximum retries")
+
+
+
 async def main():
     logging.info(f"Starting bot with token: {BOT_TOKEN[:5]}...")
     application = None
@@ -243,32 +250,48 @@ async def main():
         await application.initialize()
         await application.start()
         
-        # Get the current highest update ID
-        updates = await application.bot.get_updates(offset=-1, limit=1)
-        if updates:
-            highest_id = updates[-1].update_id
-            # Acknowledge all previous updates
-            await application.bot.get_updates(offset=highest_id + 1)
-        
-        # Start polling without the offset parameter
+        # Start polling with error handling
+        async def error_handler(update, context):
+            logging.error(f"Exception while handling an update: {context.error}")
+
+        application.add_error_handler(error_handler)
+
         await application.updater.start_polling(allowed_updates=['message'], 
                                                 drop_pending_updates=True)
         logging.info("Bot is polling for updates...")
         
         # Run the bot until you press Ctrl-C
         await application.idle()
+    except NetworkError as e:
+        logging.error(f"Network error occurred: {e}")
+    except TimedOut as e:
+        logging.error(f"Request timed out: {e}")
     except Exception as e:
         logging.error(f"Error starting bot: {e}")
-        raise
     finally:
         if application:
-            await application.stop()
-            await application.shutdown()
+            try:
+                await application.stop()
+                await application.shutdown()
+                logging.info("Application has been stopped and shut down.")
+            except Exception as e:
+                logging.error(f"Error during application shutdown: {e}")
 
 if __name__ == '__main__':
-    try:
-        asyncio.run(main())
-    except KeyboardInterrupt:
-        logging.info("Bot stopped manually")
-    except Exception as e:
-        logging.error(f"Unhandled exception: {e}")
+    retry_count = 0
+    max_retries = 5
+    while retry_count < max_retries:
+        try:
+            asyncio.run(main())
+            break
+        except KeyboardInterrupt:
+            logging.info("Bot stopped manually")
+            break
+        except Exception as e:
+            logging.error(f"Unhandled exception: {e}")
+            retry_count += 1
+            logging.info(f"Retrying in 10 seconds... (Attempt {retry_count}/{max_retries})")
+            asyncio.run(asyncio.sleep(10))
+    
+    if retry_count == max_retries:
+        logging.error("Max retries reached. Bot could not be started.")
