@@ -1,15 +1,16 @@
 import logging
 from telegram import Update, BotCommand
-from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
+from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, JobQueue
 from datetime import datetime
 import pytz
 from functools import wraps
+import asyncio
 
 # Enable logging
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 
 # Bot token
-TOKEN = '7303862349:AAEdIRwQddZI026xqxt3DjnUW7w_avcQPQg'
+TOKEN = '7303862349:AAEdIRwQddZI026xqxt3DjnUW7w_avcQPQg'  
 
 # Lists for players
 playing_list = []
@@ -177,9 +178,7 @@ async def get_chat_id(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         await update.message.reply_text(f"This {chat_type} chat ID is: {chat_id}")
     print(f"Get chat ID command used by @{update.effective_user.username} in {chat_type} chat")
 
-def main() -> None:
-    application = ApplicationBuilder().token(TOKEN).build()
-
+async def set_commands(bot):
     commands = [
         BotCommand("register", "Register for the game"),
         BotCommand("remove", "Remove yourself from the game"),
@@ -188,7 +187,12 @@ def main() -> None:
         BotCommand("create_game", "Create a new game and reset lists"),
         BotCommand("clear_list", "Clear all lists"),
         BotCommand("send_reminder", "Manually send a reminder"),
+        BotCommand("get_chat_id", "Get the chat ID"),
     ]
+    await bot.set_my_commands(commands)
+
+async def main():
+    application = ApplicationBuilder().token(TOKEN).build()
 
     application.add_handler(CommandHandler("register", register))
     application.add_handler(CommandHandler("remove", remove))
@@ -198,13 +202,14 @@ def main() -> None:
     application.add_handler(CommandHandler("clear_list", clear_list))
     application.add_handler(CommandHandler("send_reminder", manual_reminder))
     application.add_handler(CommandHandler("get_chat_id", get_chat_id))
-    application.bot.set_my_commands(commands)
+    
+    await set_commands(application.bot)
 
     # Set up job queue for reminders
     job_queue = application.job_queue
     job_queue.run_repeating(send_reminders, interval=7200, first=10)  # Runs every 2 hours
 
-    application.run_polling()
+    await application.run_polling()
 
 if __name__ == '__main__':
-    main()
+    asyncio.run(main())
