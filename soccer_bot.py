@@ -1,11 +1,11 @@
 import logging
 from telegram import Update, BotCommand
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, JobQueue
+from telegram.error import TimedOut  # Add this line
 from datetime import datetime
 import pytz
 from functools import wraps
 import asyncio
-from telegram.ext import ApplicationBuilder, CommandHandler
 import os
 
 logging.basicConfig(level=logging.INFO)
