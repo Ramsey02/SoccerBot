@@ -158,6 +158,9 @@ async def approve(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 @private_chat_only
 async def create_game(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     global playing_list, waiting_list, approvals, bringing_ball, game_created
+    if game_created:
+        await update.message.reply_text("A game has already been created. Use /clear_list to reset everything before creating a new game.")
+        return
     playing_list = []
     waiting_list = []
     approvals = {}
@@ -165,7 +168,7 @@ async def create_game(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     game_created = True
     await update.message.reply_text("New game created for Thursday 6:30-8:30 PM. Lists have been reset.")
     logger.info(f"Create game command used by @{update.effective_user.username}")
-
+    
 @private_chat_only
 async def clear_list(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     global playing_list, waiting_list, approvals, bringing_ball, game_created
@@ -188,12 +191,15 @@ async def bring_ball(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
     user_name = user.username or f"{user.first_name}_{user_id}"
     
     if user_name in playing_list:
-        bringing_ball.add(user_name)
-        await update.message.reply_text(f"Great, {user.first_name}! We've noted that you're bringing a ball. {BALL_EMOJI}")
+        if user_name in bringing_ball:
+            bringing_ball.remove(user_name)
+            await update.message.reply_text(f"{user.first_name}, we've noted that you're no longer bringing a ball.")
+        else:
+            bringing_ball.add(user_name)
+            await update.message.reply_text(f"Great, {user.first_name}! We've noted that you're bringing a ball. {BALL_EMOJI}")
     else:
         await update.message.reply_text("You're not in the playing list. Please register for the game first.")
     logger.info(f"Bring ball command used by {user_name}")
-
 
 
 async def send_reminders(context: ContextTypes.DEFAULT_TYPE) -> None:
