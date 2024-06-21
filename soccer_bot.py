@@ -16,21 +16,21 @@ logger.info("Environment variables:")
 for key, value in os.environ.items():
     logger.info(f"{key}: {value[:5]}..." if key == "BOT_TOKEN" else f"{key}: {value}")
 
-BOT_TOKEN = os.environ.get('7303862349:AAEdIRwQddZI026xqxt3DjnUW7w_avcQPQg')
-if not BOT_TOKEN:
+TOKEN = os.environ.get('BOT_TOKEN')
+if not TOKEN:
     logger.error("No BOT_TOKEN environment variable set")
     raise ValueError("No BOT_TOKEN environment variable set")
 
-GROUP_CHAT_ID = os.environ.get('-4262387584')
+GROUP_CHAT_ID = os.environ.get('GROUP_CHAT_ID')
 if not GROUP_CHAT_ID:
     logger.error("No GROUP_CHAT_ID environment variable set")
     raise ValueError("No GROUP_CHAT_ID environment variable set")
 
-logger.info(f"BOT_TOKEN: {BOT_TOKEN[:5]}...")
+logger.info(f"BOT_TOKEN: {TOKEN[:5]}...")
 logger.info(f"GROUP_CHAT_ID: {GROUP_CHAT_ID}")
 
 # Bot token
-# BOT_TOKEN = '7303862349:AAEdIRwQddZI026xqxt3DjnUW7w_avcQPQg'  
+# TOKEN = '7303862349:AAEdIRwQddZI026xqxt3DjnUW7w_avcQPQg'  
 
 # Lists for players
 playing_list = []
@@ -212,9 +212,9 @@ async def set_commands(bot):
     await bot.set_my_commands(commands)
 
 async def main():
-    logging.info(f"Starting bot with token: {BOT_TOKEN[:5]}...")  # Only log first 5 characters for security
+    logging.info(f"Starting bot with token: {TOKEN[:5]}...")  # Only log first 5 characters for security
     try:        
-        application = ApplicationBuilder().token(BOT_TOKEN).build()
+        application = ApplicationBuilder().token(TOKEN).build()
 
         application.add_handler(CommandHandler("register", register))
         application.add_handler(CommandHandler("remove", remove))
