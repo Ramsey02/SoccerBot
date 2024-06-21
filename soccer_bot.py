@@ -215,7 +215,7 @@ async def set_commands_with_retry(bot, max_retries=3):
     logging.error("Failed to set bot commands after maximum retries")
 
 async def main():
-    logging.info(f"Starting bot with token: {BOT_TOKEN[:5]}...")  # Only log first 5 characters for security
+    logging.info(f"Starting bot with token: {BOT_TOKEN[:5]}...")
     try:        
         application = ApplicationBuilder().token(BOT_TOKEN).build()
 
@@ -230,9 +230,12 @@ async def main():
         
         await set_commands_with_retry(application.bot)
 
-        # Set up job queue for reminders
-        job_queue = application.job_queue
-        job_queue.run_repeating(send_reminders, interval=7200, first=10)  # Runs every 2 hours
+        # Set up job queue for reminders if available
+        if application.job_queue:
+            application.job_queue.run_repeating(send_reminders, interval=7200, first=10)  # Runs every 2 hours
+            logging.info("Job queue set up successfully")
+        else:
+            logging.warning("Job queue is not available. Reminders will not be sent automatically.")
 
         logging.info("Bot started successfully")
         await application.run_polling()
