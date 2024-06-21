@@ -10,6 +10,9 @@ from datetime import datetime
 import pytz
 from functools import wraps
 APPROVE_EMOJI = "✅"
+BALL_EMOJI = "⚽"
+bringing_ball = set()
+
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -126,8 +129,9 @@ async def print_list(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
         return
     message = "Playing List:\n"
     for i, player in enumerate(playing_list, 1):
-        approval_status = f" {APPROVE_EMOJI}" if approvals.get(player, False) else ""
-        message += f"{i}. @{player}{approval_status}\n"
+        approval_status = f"{APPROVE_EMOJI}" if approvals.get(player, False) else ""
+        ball_status = f"{BALL_EMOJI}" if player in bringing_ball else ""
+        message += f"{i}. @{player} {approval_status}{ball_status}\n"
     message += "\nWaiting List:\n"
     for i, player in enumerate(waiting_list, 1):
         message += f"{i}. @{player}\n"
@@ -153,24 +157,45 @@ async def approve(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
 @private_chat_only
 async def create_game(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    global playing_list, waiting_list, approvals, game_created
+    global playing_list, waiting_list, approvals, bringing_ball, game_created
     playing_list = []
     waiting_list = []
     approvals = {}
+    bringing_ball = set()
     game_created = True
     await update.message.reply_text("New game created for Thursday 6:30-8:30 PM. Lists have been reset.")
     logger.info(f"Create game command used by @{update.effective_user.username}")
 
 @private_chat_only
 async def clear_list(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    global playing_list, waiting_list, approvals, game_created
+    global playing_list, waiting_list, approvals, bringing_ball, game_created
     playing_list = []
     waiting_list = []
     approvals = {}
+    bringing_ball = set()
     game_created = False
     await update.message.reply_text("All lists have been cleared. Use /create_game to start a new game.")
     logger.info(f"Clear list command used by @{update.effective_user.username}")
+
+@private_chat_only
+async def bring_ball(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    global game_created
+    if not game_created:
+        await update.message.reply_text("No game has been created yet.")
+        return
+    user = update.effective_user
+    user_id = user.id
+    user_name = user.username or f"{user.first_name}_{user_id}"
     
+    if user_name in playing_list:
+        bringing_ball.add(user_name)
+        await update.message.reply_text(f"Great, {user.first_name}! We've noted that you're bringing a ball. {BALL_EMOJI}")
+    else:
+        await update.message.reply_text("You're not in the playing list. Please register for the game first.")
+    logger.info(f"Bring ball command used by {user_name}")
+
+
+
 async def send_reminders(context: ContextTypes.DEFAULT_TYPE) -> None:
     now = datetime.now(pytz.timezone('Asia/Jerusalem'))
     if now.weekday() == 3 and now.hour >= 10 and now.hour < 16:  # Thursday between 10 AM and 4 PM
@@ -223,6 +248,7 @@ async def set_commands_with_retry(bot, max_retries=3):
         BotCommand("clear_list", "Clear all lists"),
         BotCommand("send_reminder", "Manually send a reminder"),
         BotCommand("get_chat_id", "Get the chat ID"),
+        BotCommand("bring_ball", "Indicate you're bringing a ball"),  
     ]
     for attempt in range(max_retries):
         try:
@@ -258,6 +284,8 @@ async def main():
         application.add_handler(CommandHandler("clear_list", clear_list))
         application.add_handler(CommandHandler("send_reminder", manual_reminder))
         application.add_handler(CommandHandler("get_chat_id", get_chat_id))
+        application.add_handler(CommandHandler("bring_ball", bring_ball))
+
         
         await set_commands_with_retry(application.bot)
 
