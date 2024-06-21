@@ -214,9 +214,11 @@ async def set_commands_with_retry(bot, max_retries=3):
             if attempt < max_retries - 1:
                 await asyncio.sleep(5)  # Wait 5 seconds before retrying
     logging.error("Failed to set bot commands after maximum retries")
+
 async def main():
     logging.info(f"Starting bot with token: {BOT_TOKEN[:5]}...")
-    try:        
+    application = None
+    try:
         application = ApplicationBuilder().token(BOT_TOKEN).build()
 
         # Add your command handlers here
@@ -241,19 +243,31 @@ async def main():
         logging.info("Bot started successfully")
         await application.initialize()
         await application.start()
-        await application.run_polling()
+        
+        # Get the current highest update ID
+        updates = await application.bot.get_updates(offset=-1, limit=1)
+        highest_id = updates[-1].update_id if updates else 0
+        
+        # Start polling with a high offset to ignore all previous updates
+        await application.updater.start_polling(allowed_updates=['message'], 
+                                                drop_pending_updates=True,
+                                                offset=highest_id + 1)
+        logging.info("Bot is polling for updates...")
+        
+        # Run the bot until you press Ctrl-C
+        await application.idle()
     except Exception as e:
         logging.error(f"Error starting bot: {e}")
         raise
     finally:
-        await application.stop()
-        await application.shutdown()
+        if application:
+            await application.stop()
+            await application.shutdown()
+
 if __name__ == '__main__':
-    if sys.platform.startswith('win'):
-        # Windows-specific event loop policy
-        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
-    else:
-        # Unix-specific event loop policy (optional, as it's usually the default)
-        asyncio.set_event_loop_policy(asyncio.DefaultEventLoopPolicy())
-    
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        logging.info("Bot stopped manually")
+    except Exception as e:
+        logging.error(f"Unhandled exception: {e}")
