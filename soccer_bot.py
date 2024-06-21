@@ -5,20 +5,32 @@ from datetime import datetime
 import pytz
 from functools import wraps
 import asyncio
-import os 
 
-TOKEN = os.environ.get('7303862349:AAEdIRwQddZI026xqxt3DjnUW7w_avcQPQg')
-if not TOKEN:
+import os
+import logging
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+logger.info("Environment variables:")
+for key, value in os.environ.items():
+    logger.info(f"{key}: {value[:5]}..." if key == "BOT_TOKEN" else f"{key}: {value}")
+
+BOT_TOKEN = os.environ.get('7303862349:AAEdIRwQddZI026xqxt3DjnUW7w_avcQPQg')
+if not BOT_TOKEN:
+    logger.error("No BOT_TOKEN environment variable set")
     raise ValueError("No BOT_TOKEN environment variable set")
 
 GROUP_CHAT_ID = os.environ.get('-4262387584')
 if not GROUP_CHAT_ID:
+    logger.error("No GROUP_CHAT_ID environment variable set")
     raise ValueError("No GROUP_CHAT_ID environment variable set")
-# Enable logging
-logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
+
+logger.info(f"BOT_TOKEN: {BOT_TOKEN[:5]}...")
+logger.info(f"GROUP_CHAT_ID: {GROUP_CHAT_ID}")
 
 # Bot token
-# TOKEN = '7303862349:AAEdIRwQddZI026xqxt3DjnUW7w_avcQPQg'  
+# BOT_TOKEN = '7303862349:AAEdIRwQddZI026xqxt3DjnUW7w_avcQPQg'  
 
 # Lists for players
 playing_list = []
@@ -200,9 +212,9 @@ async def set_commands(bot):
     await bot.set_my_commands(commands)
 
 async def main():
-    logging.info(f"Starting bot with token: {TOKEN[:5]}...")  # Only log first 5 characters for security
+    logging.info(f"Starting bot with token: {BOT_TOKEN[:5]}...")  # Only log first 5 characters for security
     try:        
-        application = ApplicationBuilder().token(TOKEN).build()
+        application = ApplicationBuilder().token(BOT_TOKEN).build()
 
         application.add_handler(CommandHandler("register", register))
         application.add_handler(CommandHandler("remove", remove))
