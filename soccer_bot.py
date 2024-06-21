@@ -6,11 +6,15 @@ import pytz
 from functools import wraps
 import asyncio
 
+import os
+TOKEN = os.environ.get('7303862349:AAEdIRwQddZI026xqxt3DjnUW7w_avcQPQg')
+GROUP_CHAT_ID = os.environ.get('-4262387584')
+
 # Enable logging
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 
 # Bot token
-TOKEN = '7303862349:AAEdIRwQddZI026xqxt3DjnUW7w_avcQPQg'  
+# TOKEN = '7303862349:AAEdIRwQddZI026xqxt3DjnUW7w_avcQPQg'  
 
 # Lists for players
 playing_list = []
@@ -22,7 +26,7 @@ game_created = False
 approvals = {}
 
 # Group chat ID
-GROUP_CHAT_ID = '-4262387584'  
+# GROUP_CHAT_ID = '-4262387584'  
 
 def private_chat_only(func):
     @wraps(func)
