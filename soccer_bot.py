@@ -6,6 +6,7 @@ import pytz
 from functools import wraps
 import asyncio
 import os
+from telegram.error import TimedOut
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -191,7 +192,7 @@ async def get_chat_id(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         await update.message.reply_text(f"This {chat_type} chat ID is: {chat_id}")
     print(f"Get chat ID command used by @{update.effective_user.username} in {chat_type} chat")
 
-async def set_commands(bot):
+async def set_commands_with_retry(bot, max_retries=3):
     commands = [
         BotCommand("register", "Register for the game"),
         BotCommand("remove", "Remove yourself from the game"),
@@ -202,7 +203,16 @@ async def set_commands(bot):
         BotCommand("send_reminder", "Manually send a reminder"),
         BotCommand("get_chat_id", "Get the chat ID"),
     ]
-    await bot.set_my_commands(commands)
+    for attempt in range(max_retries):
+        try:
+            await bot.set_my_commands(commands)
+            logging.info("Bot commands set successfully")
+            return
+        except TimedOut:
+            logging.warning(f"Timed out while setting bot commands. Attempt {attempt + 1}/{max_retries}")
+            if attempt < max_retries - 1:
+                await asyncio.sleep(5)  # Wait 5 seconds before retrying
+    logging.error("Failed to set bot commands after maximum retries")
 
 async def main():
     logging.info(f"Starting bot with token: {BOT_TOKEN[:5]}...")  # Only log first 5 characters for security
@@ -218,13 +228,11 @@ async def main():
         application.add_handler(CommandHandler("send_reminder", manual_reminder))
         application.add_handler(CommandHandler("get_chat_id", get_chat_id))
         
-        await set_commands(application.bot)
+        await set_commands_with_retry(application.bot)
 
         # Set up job queue for reminders
         job_queue = application.job_queue
         job_queue.run_repeating(send_reminders, interval=7200, first=10)  # Runs every 2 hours
-
-        await application.run_polling()
 
         logging.info("Bot started successfully")
         await application.run_polling()
