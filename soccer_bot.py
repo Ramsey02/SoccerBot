@@ -5,8 +5,8 @@ from datetime import datetime
 import pytz
 from functools import wraps
 import asyncio
+from telegram.ext import ApplicationBuilder, CommandHandler
 import os
-from telegram.error import TimedOut
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -213,12 +213,12 @@ async def set_commands_with_retry(bot, max_retries=3):
             if attempt < max_retries - 1:
                 await asyncio.sleep(5)  # Wait 5 seconds before retrying
     logging.error("Failed to set bot commands after maximum retries")
-
 async def main():
     logging.info(f"Starting bot with token: {BOT_TOKEN[:5]}...")
     try:        
         application = ApplicationBuilder().token(BOT_TOKEN).build()
 
+        # Add your command handlers here
         application.add_handler(CommandHandler("register", register))
         application.add_handler(CommandHandler("remove", remove))
         application.add_handler(CommandHandler("print_list", print_list))
@@ -232,16 +232,22 @@ async def main():
 
         # Set up job queue for reminders if available
         if application.job_queue:
-            application.job_queue.run_repeating(send_reminders, interval=7200, first=10)  # Runs every 2 hours
+            application.job_queue.run_repeating(send_reminders, interval=7200, first=10)
             logging.info("Job queue set up successfully")
         else:
             logging.warning("Job queue is not available. Reminders will not be sent automatically.")
 
         logging.info("Bot started successfully")
+        await application.initialize()
+        await application.start()
         await application.run_polling()
     except Exception as e:
         logging.error(f"Error starting bot: {e}")
         raise
+    finally:
+        await application.stop()
+        await application.shutdown()
 
 if __name__ == '__main__':
+    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())  # Use this line if you're on Windows
     asyncio.run(main())
