@@ -6,6 +6,7 @@ from datetime import datetime
 import pytz
 from functools import wraps
 import asyncio
+import sys
 import os
 
 logging.basicConfig(level=logging.INFO)
@@ -247,7 +248,12 @@ async def main():
     finally:
         await application.stop()
         await application.shutdown()
-
 if __name__ == '__main__':
-    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())  # Use this line if you're on Windows
+    if sys.platform.startswith('win'):
+        # Windows-specific event loop policy
+        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+    else:
+        # Unix-specific event loop policy (optional, as it's usually the default)
+        asyncio.set_event_loop_policy(asyncio.DefaultEventLoopPolicy())
+    
     asyncio.run(main())
