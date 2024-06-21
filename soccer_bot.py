@@ -214,7 +214,6 @@ async def set_commands_with_retry(bot, max_retries=3):
             if attempt < max_retries - 1:
                 await asyncio.sleep(5)  # Wait 5 seconds before retrying
     logging.error("Failed to set bot commands after maximum retries")
-
 async def main():
     logging.info(f"Starting bot with token: {BOT_TOKEN[:5]}...")
     application = None
@@ -246,12 +245,14 @@ async def main():
         
         # Get the current highest update ID
         updates = await application.bot.get_updates(offset=-1, limit=1)
-        highest_id = updates[-1].update_id if updates else 0
+        if updates:
+            highest_id = updates[-1].update_id
+            # Acknowledge all previous updates
+            await application.bot.get_updates(offset=highest_id + 1)
         
-        # Start polling with a high offset to ignore all previous updates
+        # Start polling without the offset parameter
         await application.updater.start_polling(allowed_updates=['message'], 
-                                                drop_pending_updates=True,
-                                                offset=highest_id + 1)
+                                                drop_pending_updates=True)
         logging.info("Bot is polling for updates...")
         
         # Run the bot until you press Ctrl-C
