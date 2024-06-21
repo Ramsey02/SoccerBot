@@ -1,32 +1,28 @@
 import logging
+import asyncio
+import os
+import requests
+import telegram
 from telegram import Update, BotCommand
-from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, JobQueue
-from telegram.error import TimedOut  # Add this line
+from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
+from telegram.error import NetworkError, TimedOut
 from datetime import datetime
 import pytz
 from functools import wraps
-import asyncio
-import sys
-import os
-import asyncio
-from telegram.error import NetworkError, TimedOut
-from telegram.ext import ApplicationBuilder, CommandHandler
-import logging
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-logger.info("Environment variables:")
-for key, value in os.environ.items():
-    logger.info(f"{key}: {value[:5]}..." if key == "BOT_TOKEN" else f"{key}: {value}")
+logger.info(f"python-telegram-bot version: {telegram.__version__}")
 
-# Fetching the environment variables using their names
+# Fetching the environment variables
 BOT_TOKEN = os.environ.get('BOT_TOKEN')
+GROUP_CHAT_ID = os.environ.get('GROUP_CHAT_ID')
+
 if not BOT_TOKEN:
     logger.error("No BOT_TOKEN environment variable set")
     raise ValueError("No BOT_TOKEN environment variable set")
 
-GROUP_CHAT_ID = os.environ.get('GROUP_CHAT_ID')
 if not GROUP_CHAT_ID:
     logger.error("No GROUP_CHAT_ID environment variable set")
     raise ValueError("No GROUP_CHAT_ID environment variable set")
@@ -42,6 +38,24 @@ game_created = False
 
 # Dictionary to track approvals
 approvals = {}
+
+def check_internet_connection():
+    try:
+        requests.get("https://api.telegram.org", timeout=5)
+        logger.info("Internet connection is available.")
+        return True
+    except requests.ConnectionError:
+        logger.error("No internet connection available.")
+        return False
+
+async def check_telegram_api(bot):
+    try:
+        await bot.get_me()
+        logger.info("Telegram API is responsive.")
+        return True
+    except Exception as e:
+        logger.error(f"Telegram API is not responsive: {e}")
+        return False
 
 def private_chat_only(func):
     @wraps(func)
@@ -75,7 +89,7 @@ async def register(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         waiting_list.append(user_name)
         await update.message.reply_text(f"You've been added to the waiting list, {user.first_name}.")
     
-    print(f"Register command used by {user_name}")
+    logger.info(f"Register command used by {user_name}")
 
 @private_chat_only
 async def remove(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -101,7 +115,7 @@ async def remove(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     else:
         await update.message.reply_text("You're not registered for the game.")
     
-    print(f"Remove command used by {user_name}")
+    logger.info(f"Remove command used by {user_name}")
 
 @private_chat_only
 async def print_list(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -116,7 +130,7 @@ async def print_list(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
     for i, player in enumerate(waiting_list, 1):
         message += f"{i}. @{player}\n"
     await update.message.reply_text(message)
-    print(f"Print list command used by @{update.effective_user.username}")
+    logger.info(f"Print list command used by @{update.effective_user.username}")
 
 @private_chat_only
 async def approve(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -133,7 +147,7 @@ async def approve(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         await update.message.reply_text(f"Your attendance has been approved, {user.first_name}.")
     else:
         await update.message.reply_text("You're not in the playing list.")
-    print(f"Approve command used by {user_name}")
+    logger.info(f"Approve command used by {user_name}")
 
 @private_chat_only
 async def create_game(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -143,7 +157,7 @@ async def create_game(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     approvals = {}
     game_created = True
     await update.message.reply_text("New game created for Thursday 6:30-8:30 PM. Lists have been reset.")
-    print(f"Create game command used by @{update.effective_user.username}")
+    logger.info(f"Create game command used by @{update.effective_user.username}")
 
 @private_chat_only
 async def clear_list(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -153,8 +167,8 @@ async def clear_list(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
     approvals = {}
     game_created = False
     await update.message.reply_text("All lists have been cleared. Use /create_game to start a new game.")
-    print(f"Clear list command used by @{update.effective_user.username}")
-    
+    logger.info(f"Clear list command used by @{update.effective_user.username}")
+
 async def send_reminders(context: ContextTypes.DEFAULT_TYPE) -> None:
     now = datetime.now(pytz.timezone('Asia/Jerusalem'))
     if now.weekday() == 3 and now.hour >= 10 and now.hour < 16:  # Thursday between 10 AM and 4 PM
@@ -186,8 +200,8 @@ async def manual_reminder(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     else:
         await update.message.reply_text("All players have approved their attendance.")
     
-    print(f"Manual reminder command used by @{update.effective_user.username}")
-  
+    logger.info(f"Manual reminder command used by @{update.effective_user.username}")
+
 async def get_chat_id(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     chat_id = update.effective_chat.id
     chat_type = update.effective_chat.type
@@ -195,7 +209,7 @@ async def get_chat_id(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         await update.message.reply_text(f"This private chat ID is: {chat_id}")
     else:
         await update.message.reply_text(f"This {chat_type} chat ID is: {chat_id}")
-    print(f"Get chat ID command used by @{update.effective_user.username} in {chat_type} chat")
+    logger.info(f"Get chat ID command used by @{update.effective_user.username} in {chat_type} chat")
 
 async def set_commands_with_retry(bot, max_retries=3):
     commands = [
@@ -211,23 +225,28 @@ async def set_commands_with_retry(bot, max_retries=3):
     for attempt in range(max_retries):
         try:
             await bot.set_my_commands(commands)
-            logging.info("Bot commands set successfully")
+            logger.info("Bot commands set successfully")
             return
         except TimedOut:
-            logging.warning(f"Timed out while setting bot commands. Attempt {attempt + 1}/{max_retries}")
+            logger.warning(f"Timed out while setting bot commands. Attempt {attempt + 1}/{max_retries}")
             if attempt < max_retries - 1:
                 await asyncio.sleep(5)  # Wait 5 seconds before retrying
-    logging.error("Failed to set bot commands after maximum retries")
-
-
+    logger.error("Failed to set bot commands after maximum retries")
 
 async def main():
-    logging.info(f"Starting bot with token: {BOT_TOKEN[:5]}...")
+    if not check_internet_connection():
+        logger.error("Cannot start bot due to no internet connection.")
+        return
+
+    logger.info(f"Starting bot with token: {BOT_TOKEN[:5]}...")
     application = None
     try:
         application = ApplicationBuilder().token(BOT_TOKEN).build()
 
-        # Add your command handlers here
+        if not await check_telegram_api(application.bot):
+            logger.error("Cannot start bot due to Telegram API issues.")
+            return
+
         application.add_handler(CommandHandler("register", register))
         application.add_handler(CommandHandler("remove", remove))
         application.add_handler(CommandHandler("print_list", print_list))
@@ -242,40 +261,40 @@ async def main():
         # Set up job queue for reminders if available
         if application.job_queue:
             application.job_queue.run_repeating(send_reminders, interval=7200, first=10)
-            logging.info("Job queue set up successfully")
+            logger.info("Job queue set up successfully")
         else:
-            logging.warning("Job queue is not available. Reminders will not be sent automatically.")
+            logger.warning("Job queue is not available. Reminders will not be sent automatically.")
 
-        logging.info("Bot started successfully")
+        logger.info("Bot started successfully")
         await application.initialize()
         await application.start()
         
         # Start polling with error handling
         async def error_handler(update, context):
-            logging.error(f"Exception while handling an update: {context.error}")
+            logger.error(f"Exception while handling an update: {context.error}")
 
         application.add_error_handler(error_handler)
 
         await application.updater.start_polling(allowed_updates=['message'], 
                                                 drop_pending_updates=True)
-        logging.info("Bot is polling for updates...")
+        logger.info("Bot is polling for updates...")
         
         # Run the bot until you press Ctrl-C
         await application.idle()
     except NetworkError as e:
-        logging.error(f"Network error occurred: {e}")
+        logger.error(f"Network error occurred: {e}")
     except TimedOut as e:
-        logging.error(f"Request timed out: {e}")
+        logger.error(f"Request timed out: {e}")
     except Exception as e:
-        logging.error(f"Error starting bot: {e}")
+        logger.error(f"Error starting bot: {e}")
     finally:
         if application:
             try:
                 await application.stop()
                 await application.shutdown()
-                logging.info("Application has been stopped and shut down.")
+                logger.info("Application has been stopped and shut down.")
             except Exception as e:
-                logging.error(f"Error during application shutdown: {e}")
+                logger.error(f"Error during application shutdown: {e}")
 
 if __name__ == '__main__':
     retry_count = 0
@@ -285,13 +304,13 @@ if __name__ == '__main__':
             asyncio.run(main())
             break
         except KeyboardInterrupt:
-            logging.info("Bot stopped manually")
+            logger.info("Bot stopped manually")
             break
         except Exception as e:
-            logging.error(f"Unhandled exception: {e}")
+            logger.error(f"Unhandled exception: {e}")
             retry_count += 1
-            logging.info(f"Retrying in 10 seconds... (Attempt {retry_count}/{max_retries})")
+            logger.info(f"Retrying in 10 seconds... (Attempt {retry_count}/{max_retries})")
             asyncio.run(asyncio.sleep(10))
     
     if retry_count == max_retries:
-        logging.error("Max retries reached. Bot could not be started.")
+        logger.error("Max retries reached. Bot could not be started.")
