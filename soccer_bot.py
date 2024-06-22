@@ -10,6 +10,19 @@ from datetime import datetime
 import pytz
 from functools import wraps
 from telegram import ChatMember
+import logging
+import asyncio
+import os
+import requests
+import telegram
+from telegram import Update, BotCommand
+from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
+from telegram.error import NetworkError, TimedOut
+from datetime import datetime
+import pytz
+from functools import wraps
+from telegram import ChatMember
+import random
 
 APPROVE_EMOJI = "✅"
 BALL_EMOJI = "⚽"
@@ -188,7 +201,14 @@ async def create_game(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     approvals = {}
     bringing_ball = set()
     game_created = True
-    await update.message.reply_text("New game created for Thursday 6:30-8:30 PM. Lists have been reset.")
+    
+    # Send message to the group chat
+    await context.bot.send_message(
+        chat_id=GROUP_CHAT_ID,
+        text="New game created for Thursday 6:30-8:30 PM. Use /register to join the game!"
+    )
+    
+    await update.message.reply_text("New game created and announced in the group chat.")
     logger.info(f"Create game command used by @{update.effective_user.username}")
 
 @private_chat_only
@@ -224,16 +244,83 @@ async def bring_ball(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
         await update.message.reply_text("You're not in the playing list. Please register for the game first.")
     logger.info(f"Bring ball command used by {user_name}")
 
+@private_chat_only
+@admin_only
+async def register_player(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if not context.args:
+        await update.message.reply_text("Please provide a username to register.")
+        return
+    
+    username = context.args[0].lstrip('@')
+    if username in playing_list or username in waiting_list:
+        await update.message.reply_text(f"@{username} is already registered.")
+    elif len(playing_list) < MAX_PLAYERS:
+                await update.message.reply_text(f"@{username} has been added to the playing list.")
+    else:
+        waiting_list.append(username)
+        await update.message.reply_text(f"@{username} has been added to the waiting list.")
+    
+    logger.info(f"register player command used for @{username}")
+
+
+@private_chat_only
+@admin_only
+async def remove_player(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if not context.args:
+        await update.message.reply_text("Please provide a username to remove.")
+        return
+    
+    username = context.args[0].lstrip('@')
+    playing_list.remove(username)
+    approvals.pop(username, None)
+    bringing_ball.discard(username)
+    await update.message.reply_text(f"@{username} has been removed from the playing list.")
+    if waiting_list:
+        moved_player = waiting_list.pop(0)
+        playing_list.append(moved_player)
+        await context.bot.send_message(
+            chat_id=GROUP_CHAT_ID, 
+            text=f"@{moved_player} has been moved from the waiting list to the playing list."
+        )
+    elif username in waiting_list:
+        waiting_list.remove(username)
+        await update.message.reply_text(f"@{username} has been removed from the waiting list.")
+    else:
+        await update.message.reply_text(f"@{username} is not registered for the game.")
+    
+    logger.info(f"Remove player command used for @{username}")
 
 async def send_reminders(context: ContextTypes.DEFAULT_TYPE) -> None:
     now = datetime.now(pytz.timezone('Asia/Jerusalem'))
     if now.weekday() == 3 and now.hour >= 10 and now.hour < 16:  # Thursday between 10 AM and 4 PM
         unapproved = [player for player in playing_list if player not in approvals]
         if unapproved:
-            message = "Reminder: Please approve your attendance before 4 PM. Use the /approve command in a private chat with me.\n"
+            message = "Reminder: Please approve your attendance before 4 PM. Use the /approve command in a private chat with me.\n\n"
             for player in unapproved:
-                message += f"@{player} "
+                message += f"@{player}\n"
             await context.bot.send_message(chat_id=GROUP_CHAT_ID, text=message)
+
+@private_chat_only
+@admin_only
+async def divide_teams(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if len(playing_list) < 9:
+        await update.message.reply_text("Not enough players to divide into teams. At least 9 players are needed.")
+        return
+    
+    random.shuffle(playing_list)
+    team_size = len(playing_list) // 3
+    team1 = playing_list[:team_size]
+    team2 = playing_list[team_size:2*team_size]
+    team3 = playing_list[2*team_size:]
+    
+    message = "Teams have been divided as follows:\n\n"
+    message += "Team 1 (Starts playing):\n" + "\n".join(f"@{player}" for player in team1) + "\n\n"
+    message += "Team 2 (Starts playing):\n" + "\n".join(f"@{player}" for player in team2) + "\n\n"
+    message += "Team 3 (Starts on the bench):\n" + "\n".join(f"@{player}" for player in team3) + "\n\n"
+    message += "Team 3 will start on the bench and rotate in. Good luck and have fun!"
+    
+    await context.bot.send_message(chat_id=GROUP_CHAT_ID, text=message)
+    logger.info(f"Divide teams command used by @{update.effective_user.username}")
 
 @private_chat_only
 async def manual_reminder(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -314,6 +401,10 @@ async def main():
         application.add_handler(CommandHandler("send_reminder", manual_reminder))
         application.add_handler(CommandHandler("get_chat_id", get_chat_id))
         application.add_handler(CommandHandler("bring_ball", bring_ball))
+        application.add_handler(CommandHandler("register_player", register_player))
+        application.add_handler(CommandHandler("remove_player", remove_player))
+        application.add_handler(CommandHandler("divide_teams", divide_teams))
+
 
         
         await set_commands_with_retry(application.bot)
