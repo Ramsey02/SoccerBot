@@ -3,20 +3,8 @@ import asyncio
 import os
 import requests
 import telegram
-from telegram import Update, BotCommand
-from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
-from telegram.error import NetworkError, TimedOut
-from datetime import datetime
-import pytz
-from functools import wraps
-from telegram import ChatMember
-import logging
-import asyncio
-import os
-import requests
-import telegram
-from telegram import Update, BotCommand
-from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
+from telegram import Update, BotCommand, ChatMemberUpdated
+from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, ChatMemberHandler
 from telegram.error import NetworkError, TimedOut
 from datetime import datetime
 import pytz
@@ -27,7 +15,6 @@ import random
 APPROVE_EMOJI = "✅"
 BALL_EMOJI = "⚽"
 bringing_ball = set()
-
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -189,7 +176,6 @@ async def approve(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         await update.message.reply_text("You're not in the playing list.")
     logger.info(f"Approve command used by {user_name}")
 
-@private_chat_only
 @admin_only
 async def create_game(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     global playing_list, waiting_list, approvals, bringing_ball, game_created
@@ -211,7 +197,6 @@ async def create_game(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     await update.message.reply_text("New game created and announced in the group chat.")
     logger.info(f"Create game command used by @{update.effective_user.username}")
 
-@private_chat_only
 @admin_only
 async def clear_list(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     global playing_list, waiting_list, approvals, bringing_ball, game_created
@@ -244,7 +229,6 @@ async def bring_ball(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
         await update.message.reply_text("You're not in the playing list. Please register for the game first.")
     logger.info(f"Bring ball command used by {user_name}")
 
-@private_chat_only
 @admin_only
 async def register_player(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if not context.args:
@@ -255,15 +239,14 @@ async def register_player(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     if username in playing_list or username in waiting_list:
         await update.message.reply_text(f"@{username} is already registered.")
     elif len(playing_list) < MAX_PLAYERS:
-                await update.message.reply_text(f"@{username} has been added to the playing list.")
+        playing_list.append(username)
+        await update.message.reply_text(f"@{username} has been added to the playing list.")
     else:
         waiting_list.append(username)
         await update.message.reply_text(f"@{username} has been added to the waiting list.")
     
-    logger.info(f"register player command used for @{username}")
+    logger.info(f"Register player command used for @{username}")
 
-
-@private_chat_only
 @admin_only
 async def remove_player(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if not context.args:
@@ -271,17 +254,18 @@ async def remove_player(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         return
     
     username = context.args[0].lstrip('@')
-    playing_list.remove(username)
-    approvals.pop(username, None)
-    bringing_ball.discard(username)
-    await update.message.reply_text(f"@{username} has been removed from the playing list.")
-    if waiting_list:
-        moved_player = waiting_list.pop(0)
-        playing_list.append(moved_player)
-        await context.bot.send_message(
-            chat_id=GROUP_CHAT_ID, 
-            text=f"@{moved_player} has been moved from the waiting list to the playing list."
-        )
+    if username in playing_list:
+        playing_list.remove(username)
+        approvals.pop(username, None)
+        bringing_ball.discard(username)
+        await update.message.reply_text(f"@{username} has been removed from the playing list.")
+        if waiting_list:
+            moved_player = waiting_list.pop(0)
+            playing_list.append(moved_player)
+            await context.bot.send_message(
+                chat_id=GROUP_CHAT_ID, 
+                text=f"@{moved_player} has been moved from the waiting list to the playing list."
+            )
     elif username in waiting_list:
         waiting_list.remove(username)
         await update.message.reply_text(f"@{username} has been removed from the waiting list.")
@@ -300,7 +284,6 @@ async def send_reminders(context: ContextTypes.DEFAULT_TYPE) -> None:
                 message += f"@{player}\n"
             await context.bot.send_message(chat_id=GROUP_CHAT_ID, text=message)
 
-@private_chat_only
 @admin_only
 async def divide_teams(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if len(playing_list) < 9:
@@ -364,7 +347,10 @@ async def set_commands_with_retry(bot, max_retries=3):
         BotCommand("clear_list", "Clear all lists"),
         BotCommand("send_reminder", "Manually send a reminder"),
         BotCommand("get_chat_id", "Get the chat ID"),
-        BotCommand("bring_ball", "Indicate you're bringing a ball"),  
+        BotCommand("bring_ball", "Indicate you're bringing a ball"),
+        BotCommand("register_player", "Admin: Register another player"),
+        BotCommand("remove_player", "Admin: Remove another player"),
+        BotCommand("divide_teams", "Admin: Divide players into teams"),
     ]
     for attempt in range(max_retries):
         try:
@@ -376,6 +362,26 @@ async def set_commands_with_retry(bot, max_retries=3):
             if attempt < max_retries - 1:
                 await asyncio.sleep(5)  # Wait 5 seconds before retrying
     logger.error("Failed to set bot commands after maximum retries")
+
+async def send_welcome_message(update: ChatMemberUpdated, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if update.new_chat_member and update.new_chat_member.status == ChatMember.MEMBER:
+        user = update.new_chat_member.user
+        welcome_message = (
+            f"Welcome to the football group, {user.first_name}! 🎉⚽\n\n"
+            "Here are the rules and how to use the bot:\n\n"
+            "1. Games are typically on Thursdays, 6:30-8:30 PM.\n"
+            "2. Use /register in a private chat with me to join a game.\n"
+            "3. Use /approve to confirm your attendance before 4 PM on game day.\n"
+            "4. Use /remove if you can't make it to a game you've registered for.\n"
+            "5. Use /bring_ball if you can bring a ball to the game.\n"
+            "6. Check /print_list to see who's playing and on the waiting list.\n\n"
+            "Enjoy the games and have fun! If you have any questions, feel free to ask in the group."
+        )
+        try:
+            await context.bot.send_message(chat_id=user.id, text=welcome_message)
+            logger.info(f"Welcome message sent to new member @{user.username or user.first_name}")
+        except Exception as e:
+            logger.error(f"Failed to send welcome message to @{user.username or user.first_name}: {e}")
 
 async def main():
     if not check_internet_connection():
@@ -405,7 +411,8 @@ async def main():
         application.add_handler(CommandHandler("remove_player", remove_player))
         application.add_handler(CommandHandler("divide_teams", divide_teams))
 
-
+        # Add handler for new chat members
+        application.add_handler(ChatMemberHandler(send_welcome_message, ChatMemberHandler.CHAT_MEMBER))
         
         await set_commands_with_retry(application.bot)
 
@@ -426,7 +433,7 @@ async def main():
 
         application.add_error_handler(error_handler)
 
-        await application.updater.start_polling(allowed_updates=['message'], 
+        await application.updater.start_polling(allowed_updates=['message', 'chat_member'], 
                                                 drop_pending_updates=True)
         logger.info("Bot is polling for updates...")
         
@@ -448,6 +455,7 @@ async def main():
                 logger.info("Application has been stopped and shut down.")
             except Exception as e:
                 logger.error(f"Error during application shutdown: {e}")
+
 if __name__ == '__main__':
     retry_count = 0
     max_retries = 5
