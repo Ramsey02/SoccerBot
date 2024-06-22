@@ -11,6 +11,9 @@ import pytz
 from functools import wraps
 from telegram import ChatMember
 import random
+from telegram import Update, BotCommand, ChatMemberUpdated
+from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, ChatMemberHandler, filters
+from typing import Optional, Tuple
 
 APPROVE_EMOJI = "✅"
 BALL_EMOJI = "⚽"
@@ -364,8 +367,14 @@ async def set_commands_with_retry(bot, max_retries=3):
     logger.error("Failed to set bot commands after maximum retries")
 
 async def send_welcome_message(update: ChatMemberUpdated, context: ContextTypes.DEFAULT_TYPE) -> None:
-    if update.new_chat_member and update.new_chat_member.status == ChatMember.MEMBER:
-        user = update.new_chat_member.user
+    result = extract_status_change(update.chat_member)
+    if result is None:
+        return
+
+    was_member, is_member = result
+
+    if not was_member and is_member:
+        user = update.chat_member.new_chat_member.user
         welcome_message = (
             f"Welcome to the football group, {user.first_name}! 🎉⚽\n\n"
             "Here are the rules and how to use the bot:\n\n"
@@ -382,6 +391,45 @@ async def send_welcome_message(update: ChatMemberUpdated, context: ContextTypes.
             logger.info(f"Welcome message sent to new member @{user.username or user.first_name}")
         except Exception as e:
             logger.error(f"Failed to send welcome message to @{user.username or user.first_name}: {e}")
+            # If we can't send a private message, send it to the group
+            await update.effective_chat.send_message(
+                f"Welcome {user.mention_html()}!\n\n"
+                "I tried to send you a private message with some information, "
+                "but I couldn't. Please start a private chat with me and send /start for more information.",
+                parse_mode='HTML'
+            )
+
+def extract_status_change(chat_member_update: ChatMemberUpdated) -> Optional[Tuple[bool, bool]]:
+    """Takes a ChatMemberUpdated instance and extracts whether the 'old_chat_member' was a member
+    of the chat and if the 'new_chat_member' is a member of the chat. Returns None, if
+    the status didn't change."""
+    status_change = chat_member_update.difference().get("status")
+    old_is_member, new_is_member = chat_member_update.difference().get("is_member", (None, None))
+
+    if status_change is None:
+        return None
+
+    old_status, new_status = status_change
+    was_member = (
+        old_status
+        in [
+            ChatMember.MEMBER,
+            ChatMember.OWNER,
+            ChatMember.ADMINISTRATOR,
+        ]
+        or (old_status == ChatMember.RESTRICTED and old_is_member is True)
+    )
+    is_member = (
+        new_status
+        in [
+            ChatMember.MEMBER,
+            ChatMember.OWNER,
+            ChatMember.ADMINISTRATOR,
+        ]
+        or (new_status == ChatMember.RESTRICTED and new_is_member is True)
+    )
+
+    return was_member, is_member
 
 async def main():
     if not check_internet_connection():
@@ -410,10 +458,8 @@ async def main():
         application.add_handler(CommandHandler("register_player", register_player))
         application.add_handler(CommandHandler("remove_player", remove_player))
         application.add_handler(CommandHandler("divide_teams", divide_teams))
-
-        # Add handler for new chat members
         application.add_handler(ChatMemberHandler(send_welcome_message, ChatMemberHandler.CHAT_MEMBER))
-        
+
         await set_commands_with_retry(application.bot)
 
         # Set up job queue for reminders if available
