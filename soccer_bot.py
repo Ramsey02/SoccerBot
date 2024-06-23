@@ -3,50 +3,33 @@ import asyncio
 import os
 import requests
 import telegram
-from telegram import Update, BotCommand, ChatMemberUpdated
-from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, ChatMemberHandler
+from telegram import Update, BotCommand, ChatMemberUpdated, ChatMember
+from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, ChatMemberHandler, filters
 from telegram.error import NetworkError, TimedOut
 from datetime import datetime
 import pytz
 from functools import wraps
-from telegram import ChatMember
 import random
-from telegram import Update, BotCommand, ChatMemberUpdated
-from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, ChatMemberHandler, filters
 from typing import Optional, Tuple
-
-APPROVE_EMOJI = "✅"
-BALL_EMOJI = "⚽"
-bringing_ball = set()
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-logger.info(f"python-telegram-bot version: {telegram.__version__}")
-
-# Fetching the environment variables
 BOT_TOKEN = os.environ.get('BOT_TOKEN')
 GROUP_CHAT_ID = os.environ.get('GROUP_CHAT_ID')
 
-if not BOT_TOKEN:
-    logger.error("No BOT_TOKEN environment variable set")
-    raise ValueError("No BOT_TOKEN environment variable set")
+if not BOT_TOKEN or not GROUP_CHAT_ID:
+    raise ValueError("BOT_TOKEN and GROUP_CHAT_ID must be set as environment variables")
 
-if not GROUP_CHAT_ID:
-    logger.error("No GROUP_CHAT_ID environment variable set")
-    raise ValueError("No GROUP_CHAT_ID environment variable set")
+APPROVE_EMOJI = "✅"
+BALL_EMOJI = "⚽"
+MAX_PLAYERS = 15
 
-logger.info(f"BOT_TOKEN: {BOT_TOKEN[:5]}...")
-logger.info(f"GROUP_CHAT_ID: {GROUP_CHAT_ID}")
-
-# Lists for players
 playing_list = []
 waiting_list = []
-MAX_PLAYERS = 15
-game_created = False
-
-# Dictionary to track approvals
 approvals = {}
+bringing_ball = set()
+game_created = False
 
 def check_internet_connection():
     try:
@@ -103,8 +86,7 @@ async def register(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         return
 
     user = update.effective_user
-    user_id = user.id
-    user_name = user.username or f"{user.first_name}_{user_id}"
+    user_name = user.username or f"{user.first_name}_{user.id}"
     
     if user_name in playing_list or user_name in waiting_list:
         await update.message.reply_text("You're already registered.")
@@ -124,13 +106,12 @@ async def remove(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         await update.message.reply_text("No game has been created yet.")
         return
     user = update.effective_user
-    user_id = user.id
-    user_name = user.username or f"{user.first_name}_{user_id}"
+    user_name = user.username or f"{user.first_name}_{user.id}"
     
     if user_name in playing_list:
         playing_list.remove(user_name)
-        approvals.pop(user_name, None)  # Remove from approvals list
-        bringing_ball.discard(user_name)  # Remove from bringing_ball set
+        approvals.pop(user_name, None)
+        bringing_ball.discard(user_name)
         await update.message.reply_text(f"You've been removed from the playing list, {user.first_name}.")
         if waiting_list:
             moved_player = waiting_list.pop(0)
@@ -169,8 +150,7 @@ async def approve(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         await update.message.reply_text("No game has been created yet.")
         return
     user = update.effective_user
-    user_id = user.id
-    user_name = user.username or f"{user.first_name}_{user_id}"
+    user_name = user.username or f"{user.first_name}_{user.id}"
     
     if user_name in playing_list:
         approvals[user_name] = True
@@ -191,7 +171,6 @@ async def create_game(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     bringing_ball = set()
     game_created = True
     
-    # Send message to the group chat
     await context.bot.send_message(
         chat_id=GROUP_CHAT_ID,
         text="New game created for Thursday 6:30-8:30 PM. Use /register to join the game!"
@@ -218,8 +197,7 @@ async def bring_ball(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
         await update.message.reply_text("No game has been created yet.")
         return
     user = update.effective_user
-    user_id = user.id
-    user_name = user.username or f"{user.first_name}_{user_id}"
+    user_name = user.username or f"{user.first_name}_{user.id}"
     
     if user_name in playing_list:
         if user_name in bringing_ball:
@@ -279,7 +257,7 @@ async def remove_player(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 
 async def send_reminders(context: ContextTypes.DEFAULT_TYPE) -> None:
     now = datetime.now(pytz.timezone('Asia/Jerusalem'))
-    if now.weekday() == 3 and now.hour >= 10 and now.hour < 16:  # Thursday between 10 AM and 4 PM
+    if now.weekday() == 3 and now.hour >= 10 and now.hour < 16:
         unapproved = [player for player in playing_list if player not in approvals]
         if unapproved:
             message = "Reminder: Please approve your attendance before 4 PM. Use the /approve command in a private chat with me.\n\n"
@@ -321,10 +299,7 @@ async def manual_reminder(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         for player in unapproved:
             message += f"@{player} "
         
-        # Send the reminder to the group chat
         await context.bot.send_message(chat_id=GROUP_CHAT_ID, text=message)
-        
-        # Confirm to the user in the private chat that the reminder was sent
         await update.message.reply_text("Reminder sent to the group.")
     else:
         await update.message.reply_text("All players have approved their attendance.")
@@ -363,7 +338,7 @@ async def set_commands_with_retry(bot, max_retries=3):
         except TimedOut:
             logger.warning(f"Timed out while setting bot commands. Attempt {attempt + 1}/{max_retries}")
             if attempt < max_retries - 1:
-                await asyncio.sleep(5)  # Wait 5 seconds before retrying
+                await asyncio.sleep(5)
     logger.error("Failed to set bot commands after maximum retries")
 
 async def send_welcome_message(update: ChatMemberUpdated, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -391,7 +366,6 @@ async def send_welcome_message(update: ChatMemberUpdated, context: ContextTypes.
             logger.info(f"Welcome message sent to new member @{user.username or user.first_name}")
         except Exception as e:
             logger.error(f"Failed to send welcome message to @{user.username or user.first_name}: {e}")
-            # If we can't send a private message, send it to the group
             await update.effective_chat.send_message(
                 f"Welcome {user.mention_html()}!\n\n"
                 "I tried to send you a private message with some information, "
@@ -400,9 +374,6 @@ async def send_welcome_message(update: ChatMemberUpdated, context: ContextTypes.
             )
 
 def extract_status_change(chat_member_update: ChatMemberUpdated) -> Optional[Tuple[bool, bool]]:
-    """Takes a ChatMemberUpdated instance and extracts whether the 'old_chat_member' was a member
-    of the chat and if the 'new_chat_member' is a member of the chat. Returns None, if
-    the status didn't change."""
     status_change = chat_member_update.difference().get("status")
     old_is_member, new_is_member = chat_member_update.difference().get("is_member", (None, None))
 
@@ -445,7 +416,6 @@ async def main():
             logger.error("Cannot start bot due to Telegram API issues.")
             return
 
-        # Add your command handlers here
         application.add_handler(CommandHandler("register", register))
         application.add_handler(CommandHandler("remove", remove))
         application.add_handler(CommandHandler("print_list", print_list))
@@ -462,7 +432,6 @@ async def main():
 
         await set_commands_with_retry(application.bot)
 
-        # Set up job queue for reminders if available
         if application.job_queue:
             application.job_queue.run_repeating(send_reminders, interval=7200, first=10)
             logger.info("Job queue set up successfully")
@@ -473,7 +442,6 @@ async def main():
         await application.initialize()
         await application.start()
         
-        # Start polling with error handling
         async def error_handler(update, context):
             logger.error(f"Exception while handling an update: {context.error}")
 
@@ -483,7 +451,6 @@ async def main():
                                                 drop_pending_updates=True)
         logger.info("Bot is polling for updates...")
         
-        # Instead of using idle(), we'll use an infinite loop
         while True:
             await asyncio.sleep(1)
 
@@ -516,7 +483,6 @@ if __name__ == '__main__':
             logger.error(f"Unhandled exception: {e}")
             retry_count += 1
             logger.info(f"Retrying in 10 seconds... (Attempt {retry_count}/{max_retries})")
-            # Use a synchronous sleep here since we're outside of an async context
             import time
             time.sleep(10)
     
