@@ -54,16 +54,20 @@ def admin_only(func):
     async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE):
         user_id = update.effective_user.id
         chat_id = GROUP_CHAT_ID
+        logger.info(f"Checking admin status for user {user_id} in chat {chat_id}")
         try:
             user = await context.bot.get_chat_member(chat_id, user_id)
+            logger.info(f"User status: {user.status}")
             if user.status not in [ChatMember.ADMINISTRATOR, ChatMember.OWNER]:
+                logger.info(f"User {user_id} is not an admin or owner")
                 await update.message.reply_text("This command is only available to group administrators.")
                 return
+            logger.info(f"User {user_id} is an admin or owner, executing command")
+            return await func(update, context)
         except Exception as e:
-            logger.error(f"Error checking admin status: {e}")
-            await update.message.reply_text("An error occurred while checking your permissions.")
+            logger.error(f"Error checking admin status for user {user_id}: {e}")
+            await update.message.reply_text("An error occurred while checking your permissions. Please try again later.")
             return
-        return await func(update, context)
     return wrapper
 
 def private_chat_only(func):
