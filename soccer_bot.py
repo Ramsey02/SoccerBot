@@ -173,7 +173,7 @@ async def create_game(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     
     await context.bot.send_message(
         chat_id=GROUP_CHAT_ID,
-        text="New game created for Thursday 6:30-8:30 PM. Use /register to join the game!"
+        text="New game created for Wednesday 21:00-23:00 PM. Use /register in private to join the game!"
     )
     
     await update.message.reply_text("New game created and announced in the group chat.")
@@ -257,7 +257,7 @@ async def remove_player(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 
 async def send_reminders(context: ContextTypes.DEFAULT_TYPE) -> None:
     now = datetime.now(pytz.timezone('Asia/Jerusalem'))
-    if now.weekday() == 3 and now.hour >= 10 and now.hour < 16:
+    if now.weekday() == 2 and now.hour >= 10 and now.hour < 17:
         unapproved = [player for player in playing_list if player not in approvals]
         if unapproved:
             message = "Reminder: Please approve your attendance before 4 PM. Use the /approve command in a private chat with me.\n\n"
@@ -353,9 +353,9 @@ async def send_welcome_message(update: ChatMemberUpdated, context: ContextTypes.
         welcome_message = (
             f"Welcome to the football group, {user.first_name}! 🎉⚽\n\n"
             "Here are the rules and how to use the bot:\n\n"
-            "1. Games are typically on Thursdays, 6:30-8:30 PM.\n"
+            "1. Games are typically on Wedneday, 21:00-23:00 PM.\n"
             "2. Use /register in a private chat with me to join a game.\n"
-            "3. Use /approve to confirm your attendance before 4 PM on game day.\n"
+            "3. Use /approve to confirm your attendance before 6 PM on game day.\n"
             "4. Use /remove if you can't make it to a game you've registered for.\n"
             "5. Use /bring_ball if you can bring a ball to the game.\n"
             "6. Check /print_list to see who's playing and on the waiting list.\n\n"
