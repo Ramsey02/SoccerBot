@@ -163,7 +163,6 @@ async def approve(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         await update.message.reply_text("You're not in the playing list.")
     logger.info(f"Approve command used by {user_name}")
 
-@admin_only
 async def create_game(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     global playing_list, waiting_list, approvals, bringing_ball, game_created
     if game_created:
@@ -183,7 +182,6 @@ async def create_game(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     await update.message.reply_text("New game created and announced in the group chat.")
     logger.info(f"Create game command used by @{update.effective_user.username}")
 
-@admin_only
 async def clear_list(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     global playing_list, waiting_list, approvals, bringing_ball, game_created
     playing_list = []
@@ -433,7 +431,7 @@ async def main():
         application.add_handler(CommandHandler("remove_player", remove_player))
         application.add_handler(CommandHandler("divide_teams", divide_teams))
         application.add_handler(ChatMemberHandler(send_welcome_message, ChatMemberHandler.CHAT_MEMBER))
-
+    
         await set_commands_with_retry(application.bot)
 
         if application.job_queue:
