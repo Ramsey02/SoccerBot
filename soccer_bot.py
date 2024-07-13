@@ -259,7 +259,7 @@ async def remove_player(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 
 async def send_reminders(context: ContextTypes.DEFAULT_TYPE) -> None:
     now = datetime.now(pytz.timezone('Asia/Jerusalem'))
-    if now.weekday() == 2 and now.hour >= 10 and now.hour < 17:
+    if now.weekday() == 6 and now.hour >= 10 and now.hour < 17:
         unapproved = [player for player in playing_list if player not in approvals]
         if unapproved:
             message = "Reminder: Please approve your attendance before 4 PM. Use the /approve command in a private chat with me.\n\n"
