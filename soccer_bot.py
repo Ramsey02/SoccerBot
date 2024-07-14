@@ -273,15 +273,34 @@ async def send_reminders(context: ContextTypes.DEFAULT_TYPE) -> None:
             logger.info("Automatic reminder sent")
 
 async def manual_reminder(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    global game_created, GROUP_CHAT_ID
+    
+    if not game_created:
+        await update.message.reply_text("No game has been created yet. Please create a game first.")
+        return
+
     unapproved = [player for player in playing_list if player not in approvals]
-    if unapproved:
-        message = "Reminder: Please approve your attendance for the upcoming game. Use the /approve command in a private chat with me.\n\n"
-        for player in unapproved:
-            message += f"@{player}\n"
+    
+    if not playing_list:
+        await update.message.reply_text("There are no players registered for the game yet.")
+        return
+    
+    if not unapproved:
+        await update.message.reply_text("All registered players have already approved their attendance.")
+        return
+
+    message = "Reminder: Please approve your attendance for the upcoming game. Use the /approve command in a private chat with me.\n\n"
+    message += "Players who haven't approved yet:\n"
+    for player in unapproved:
+        message += f"@{player}\n"
+
+    try:
         await context.bot.send_message(chat_id=GROUP_CHAT_ID, text=message)
-        await update.message.reply_text("Reminder sent to the group.")
-    else:
-        await update.message.reply_text("All players have approved their attendance.")
+        await update.message.reply_text("Reminder sent to the group chat successfully.")
+    except telegram.error.TelegramError as e:
+        logger.error(f"Failed to send reminder to group chat: {e}")
+        await update.message.reply_text("Failed to send reminder to the group chat. Please check the bot's permissions.")
+
     logger.info(f"Manual reminder command used by @{update.effective_user.username}")
 
 @private_chat_only
