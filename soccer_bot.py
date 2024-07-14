@@ -11,6 +11,9 @@ import pytz
 from functools import wraps
 import random
 from typing import Optional, Tuple
+from datetime import datetime, time
+import pytz
+import asyncio
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -423,7 +426,7 @@ async def main():
         if not await check_telegram_api(application.bot):
             logger.error("Cannot start bot due to Telegram API issues.")
             return
-
+        
         application.add_handler(CommandHandler("register", register))
         application.add_handler(CommandHandler("remove", remove))
         application.add_handler(CommandHandler("print_list", print_list))
