@@ -212,7 +212,7 @@ async def bring_ball(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
         await update.message.reply_text("You're not in the playing list. Please register for the game first.")
     logger.info(f"Bring ball command used by {user_name}")
 
-
+@private_chat_only
 async def register_player(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if not context.args:
         await update.message.reply_text("Please provide a username to register.")
@@ -230,6 +230,7 @@ async def register_player(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     
     logger.info(f"Register player command used for @{username}")
 
+@private_chat_only
 async def remove_player(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if not context.args:
         await update.message.reply_text("Please provide a username to remove.")
@@ -266,6 +267,7 @@ async def send_reminders(context: ContextTypes.DEFAULT_TYPE) -> None:
                 message += f"@{player}\n"
             await context.bot.send_message(chat_id=GROUP_CHAT_ID, text=message)
 
+@private_chat_only
 async def divide_teams(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if len(playing_list) < 9:
         await update.message.reply_text("Not enough players to divide into teams. At least 9 players are needed.")
@@ -286,24 +288,17 @@ async def divide_teams(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     await context.bot.send_message(chat_id=GROUP_CHAT_ID, text=message)
     logger.info(f"Divide teams command used by @{update.effective_user.username}")
 
-async def manual_reminder(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    global game_created
-    if not game_created:
-        await update.message.reply_text("No game has been created yet.")
-        return
-
-    unapproved = [player for player in playing_list if player not in approvals]
-    if unapproved:
-        message = "Reminder: Please approve your attendance before 4 PM. Use the /approve command in a private chat with the bot.\n"
-        for player in unapproved:
-            message += f"@{player} "
-        
-        await context.bot.send_message(chat_id=GROUP_CHAT_ID, text=message)
-        await update.message.reply_text("Reminder sent to the group.")
-    else:
-        await update.message.reply_text("All players have approved their attendance.")
-    
-    logger.info(f"Manual reminder command used by @{update.effective_user.username}")
+def private_chat_only(func):
+    @wraps(func)
+    async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        if update.effective_chat.type != 'private':
+            user = update.effective_user
+            await update.message.reply_text(
+                f"Hi @{user.username or user.first_name}! Please send commands in a private chat with me."
+            )
+            return
+        return await func(update, context)
+    return wrapper
 
 async def get_chat_id(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     chat_id = update.effective_chat.id
@@ -428,7 +423,7 @@ async def main():
         application.add_handler(CommandHandler("remove_player", remove_player))
         application.add_handler(CommandHandler("divide_teams", divide_teams))
         application.add_handler(ChatMemberHandler(send_welcome_message, ChatMemberHandler.CHAT_MEMBER))
-    
+
         await set_commands_with_retry(application.bot)
 
         if application.job_queue:
