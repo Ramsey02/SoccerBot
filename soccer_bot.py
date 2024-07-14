@@ -259,13 +259,26 @@ async def remove_player(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 
 async def send_reminders(context: ContextTypes.DEFAULT_TYPE) -> None:
     now = datetime.now(pytz.timezone('Asia/Jerusalem'))
-    if now.weekday() == 6 and now.hour >= 10 and now.hour < 17:
+    if now.weekday() == 6:  # Sunday (0 is Monday, 6 is Sunday)
         unapproved = [player for player in playing_list if player not in approvals]
         if unapproved:
-            message = "Reminder: Please approve your attendance before 4 PM. Use the /approve command in a private chat with me.\n\n"
+            message = "Reminder: Please approve your attendance for this week's game. Use the /approve command in a private chat with me.\n\n"
             for player in unapproved:
                 message += f"@{player}\n"
             await context.bot.send_message(chat_id=GROUP_CHAT_ID, text=message)
+            logger.info("Automatic reminder sent")
+
+async def manual_reminder(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    unapproved = [player for player in playing_list if player not in approvals]
+    if unapproved:
+        message = "Reminder: Please approve your attendance for the upcoming game. Use the /approve command in a private chat with me.\n\n"
+        for player in unapproved:
+            message += f"@{player}\n"
+        await context.bot.send_message(chat_id=GROUP_CHAT_ID, text=message)
+        await update.message.reply_text("Reminder sent to the group.")
+    else:
+        await update.message.reply_text("All players have approved their attendance.")
+    logger.info(f"Manual reminder command used by @{update.effective_user.username}")
 
 @private_chat_only
 async def divide_teams(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -423,12 +436,18 @@ async def main():
         application.add_handler(CommandHandler("remove_player", remove_player))
         application.add_handler(CommandHandler("divide_teams", divide_teams))
         application.add_handler(ChatMemberHandler(send_welcome_message, ChatMemberHandler.CHAT_MEMBER))
-
+    
         await set_commands_with_retry(application.bot)
 
         if application.job_queue:
-            application.job_queue.run_repeating(send_reminders, interval=7200, first=10)
-            logger.info("Job queue set up successfully")
+            # Schedule reminders for Sundays between 2 PM and 6 PM
+            for hour in range(14, 18):
+                application.job_queue.run_daily(
+                    send_reminders,
+                    time=time(hour=hour, minute=0, tzinfo=pytz.timezone('Asia/Jerusalem')),
+                    days=(6,)  # 6 is Sunday
+                )
+            logger.info("Job queue set up successfully for Sunday reminders")
         else:
             logger.warning("Job queue is not available. Reminders will not be sent automatically.")
 
@@ -462,7 +481,7 @@ async def main():
                 logger.info("Application has been stopped and shut down.")
             except Exception as e:
                 logger.error(f"Error during application shutdown: {e}")
-
+                
 if __name__ == '__main__':
     retry_count = 0
     max_retries = 5
