@@ -212,7 +212,7 @@ async def bring_ball(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
         await update.message.reply_text("You're not in the playing list. Please register for the game first.")
     logger.info(f"Bring ball command used by {user_name}")
 
-@admin_only
+
 async def register_player(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if not context.args:
         await update.message.reply_text("Please provide a username to register.")
@@ -230,7 +230,6 @@ async def register_player(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     
     logger.info(f"Register player command used for @{username}")
 
-@admin_only
 async def remove_player(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if not context.args:
         await update.message.reply_text("Please provide a username to remove.")
@@ -267,7 +266,6 @@ async def send_reminders(context: ContextTypes.DEFAULT_TYPE) -> None:
                 message += f"@{player}\n"
             await context.bot.send_message(chat_id=GROUP_CHAT_ID, text=message)
 
-@admin_only
 async def divide_teams(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if len(playing_list) < 9:
         await update.message.reply_text("Not enough players to divide into teams. At least 9 players are needed.")
@@ -288,7 +286,6 @@ async def divide_teams(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     await context.bot.send_message(chat_id=GROUP_CHAT_ID, text=message)
     logger.info(f"Divide teams command used by @{update.effective_user.username}")
 
-@private_chat_only
 async def manual_reminder(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     global game_created
     if not game_created:
