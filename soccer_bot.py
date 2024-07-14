@@ -106,6 +106,7 @@ async def register(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         await update.message.reply_text(f"You've been added to the waiting list, {user.first_name}.")
     
     logger.info(f"Register command used by {user_name}")
+    await print_list_to_group(context)
 
 @private_chat_only
 async def remove(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -125,7 +126,7 @@ async def remove(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             moved_player = waiting_list.pop(0)
             playing_list.append(moved_player)
             await context.bot.send_message(chat_id=GROUP_CHAT_ID, 
-                                           text=f"{moved_player} has been moved from the waiting list to the playing list.")
+                                           text=f"@{moved_player} has been moved from the waiting list to the playing list.")
     elif user_name in waiting_list:
         waiting_list.remove(user_name)
         await update.message.reply_text(f"You've been removed from the waiting list, {user.first_name}.")
@@ -133,7 +134,23 @@ async def remove(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         await update.message.reply_text("You're not registered for the game.")
     
     logger.info(f"Remove command used by {user_name}")
+    await print_list_to_group(context)
 
+async def print_list_to_group(context: ContextTypes.DEFAULT_TYPE) -> None:
+    global game_created
+    if not game_created:
+        return
+    message = "Playing List:\n"
+    for i, player in enumerate(playing_list, 1):
+        approval_status = f"{APPROVE_EMOJI}" if approvals.get(player, False) else ""
+        ball_status = f"{BALL_EMOJI}" if player in bringing_ball else ""
+        message += f"{i}. @{player} {approval_status}{ball_status}\n"
+    message += "\nWaiting List:\n"
+    for i, player in enumerate(waiting_list, 1):
+        message += f"{i}. @{player}\n"
+    await context.bot.send_message(chat_id=GROUP_CHAT_ID, text=message)
+    logger.info("Print list sent to group chat")
+    
 @private_chat_only
 async def print_list(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     global game_created
