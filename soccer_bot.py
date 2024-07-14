@@ -23,6 +23,7 @@ if not BOT_TOKEN or not GROUP_CHAT_ID:
 
 APPROVE_EMOJI = "✅"
 BALL_EMOJI = "⚽"
+
 MAX_PLAYERS = 15
 
 playing_list = []
@@ -481,7 +482,7 @@ async def main():
                 logger.info("Application has been stopped and shut down.")
             except Exception as e:
                 logger.error(f"Error during application shutdown: {e}")
-                
+
 if __name__ == '__main__':
     retry_count = 0
     max_retries = 5
