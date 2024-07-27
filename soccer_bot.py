@@ -482,7 +482,7 @@ async def main():
         application.add_handler(CommandHandler("remove", remove))
         application.add_handler(CommandHandler("print_list", print_list))
         application.add_handler(CommandHandler("approve", approve))
-        application.add_handler(CommandHandler("create_game", create_game, pass_args=True))
+        application.add_handler(CommandHandler("create_game", create_game))
         application.add_handler(CommandHandler("clear_list", clear_list))
         application.add_handler(CommandHandler("send_reminder", manual_reminder))
         application.add_handler(CommandHandler("get_chat_id", get_chat_id))
