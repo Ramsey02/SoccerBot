@@ -415,9 +415,15 @@ async def send_welcome_message(update: ChatMemberUpdated, context: ContextTypes.
             logger.error(f"Failed to send welcome message to @{user.username or user.first_name}: {e}")
             await update.effective_chat.send_message(
                 f"Welcome {user.mention_html()}!\n\n"
-                "I tried to send you a private message with some information, "
-                "but I couldn't. Please start a private chat with me and send /start for more information.",
-                parse_mode='HTML'
+            "Here are the rules and how to use the bot:\n\n"
+            "1. Games are typically on Wedneday, 21:00-23:00 PM.\n"
+            "2. Use /register in a private chat with me to join a game.\n"
+            "3. Use /approve to confirm your attendance before 6 PM on game day.\n"
+            "4. Use /remove if you can't make it to a game you've registered for.\n"
+            "5. Use /bring_ball if you can bring a ball to the game.\n"
+            "6. Check /print_list to see who's playing and on the waiting list.\n\n"
+            "Enjoy the games and have fun! If you have any questions, feel free to ask in the group.",
+            parse_mode='HTML'
             )
 
 def extract_status_change(chat_member_update: ChatMemberUpdated) -> Optional[Tuple[bool, bool]]:
