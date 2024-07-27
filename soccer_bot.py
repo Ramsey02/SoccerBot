@@ -140,7 +140,8 @@ async def print_list_to_group(context: ContextTypes.DEFAULT_TYPE) -> None:
     global game_created
     if not game_created:
         return
-    message = "Playing List:\n"
+    message = f"Game scheduled for: {game_datetime}\n\n"
+    message += "Playing List:\n"
     for i, player in enumerate(playing_list, 1):
         approval_status = f"{APPROVE_EMOJI}" if approvals.get(player, False) else ""
         ball_status = f"{BALL_EMOJI}" if player in bringing_ball else ""
@@ -168,7 +169,7 @@ async def print_list(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
         message += f"{i}. @{player}\n"
     await update.message.reply_text(message)
     logger.info(f"Print list command used by @{update.effective_user.username}")
-    
+
 @private_chat_only
 async def approve(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     global game_created
