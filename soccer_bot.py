@@ -28,7 +28,7 @@ APPROVE_EMOJI = "✅"
 BALL_EMOJI = "⚽"
 
 MAX_PLAYERS = 15
-
+game_datetime = None
 playing_list = []
 waiting_list = []
 approvals = {}
@@ -185,10 +185,19 @@ async def approve(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     logger.info(f"Approve command used by {user_name}")
 
 async def create_game(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    global playing_list, waiting_list, approvals, bringing_ball, game_created
+    global playing_list, waiting_list, approvals, bringing_ball, game_created, game_datetime
+
     if game_created:
         await update.message.reply_text("A game has already been created. Use /clear_list to reset everything before creating a new game.")
         return
+
+    if not context.args:
+        await update.message.reply_text("Please provide the day and time for the game. For example: /create_game Sunday 18:00")
+        return
+
+    game_info = ' '.join(context.args)
+    game_datetime = game_info  # Store the game date and time as a string
+
     playing_list = []
     waiting_list = []
     approvals = {}
@@ -197,11 +206,11 @@ async def create_game(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     
     await context.bot.send_message(
         chat_id=GROUP_CHAT_ID,
-        text="New game created for Wednesday 21:00-23:00 PM. Use /register in private to join the game!"
+        text=f"New game created for {game_datetime}. Use /register in private to join the game!"
     )
     
-    await update.message.reply_text("New game created and announced in the group chat.")
-    logger.info(f"Create game command used by @{update.effective_user.username}")
+    await update.message.reply_text(f"New game created for {game_datetime} and announced in the group chat.")
+    logger.info(f"Create game command used by @{update.effective_user.username} for {game_datetime}")
 
 async def clear_list(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     global playing_list, waiting_list, approvals, bringing_ball, game_created
@@ -400,7 +409,7 @@ async def send_welcome_message(update: ChatMemberUpdated, context: ContextTypes.
         welcome_message = (
             f"Welcome to the football group, {user.first_name}! 🎉⚽\n\n"
             "Here are the rules and how to use the bot:\n\n"
-            "1. Games are typically on Wedneday, 21:00-23:00 PM.\n"
+            "1. Games are typically are posted by admins a week before.\n"
             "2. Use /register in a private chat with me to join a game.\n"
             "3. Use /approve to confirm your attendance before 6 PM on game day.\n"
             "4. Use /remove if you can't make it to a game you've registered for.\n"
@@ -416,8 +425,8 @@ async def send_welcome_message(update: ChatMemberUpdated, context: ContextTypes.
             await update.effective_chat.send_message(
                 f"Welcome {user.mention_html()}!\n\n"
             "Here are the rules and how to use the bot:\n\n"
-            "1. Games are typically on Wedneday, 21:00-23:00 PM.\n"
-            "2. Use /register in a private chat with me to join a game.\n"
+            "1. Games are typically are posted by admins a week before.\n"
+            "2. Use /register in a private chat! with me to join a game.\n"
             "3. Use /approve to confirm your attendance before 6 PM on game day.\n"
             "4. Use /remove if you can't make it to a game you've registered for.\n"
             "5. Use /bring_ball if you can bring a ball to the game.\n"
@@ -473,7 +482,7 @@ async def main():
         application.add_handler(CommandHandler("remove", remove))
         application.add_handler(CommandHandler("print_list", print_list))
         application.add_handler(CommandHandler("approve", approve))
-        application.add_handler(CommandHandler("create_game", create_game))
+        application.add_handler(CommandHandler("create_game", create_game, pass_args=True))
         application.add_handler(CommandHandler("clear_list", clear_list))
         application.add_handler(CommandHandler("send_reminder", manual_reminder))
         application.add_handler(CommandHandler("get_chat_id", get_chat_id))
