@@ -151,7 +151,11 @@ async def print_list_to_group(context: ContextTypes.DEFAULT_TYPE) -> None:
         message += f"{i}. @{player}\n"
     await context.bot.send_message(chat_id=GROUP_CHAT_ID, text=message)
     logger.info("Print list sent to group chat")
-    
+
+async def print_list_to_group_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    await print_list_to_group(context)
+    logger.info(f"Print list to group command used by @{update.effective_user.username}")
+
 @private_chat_only
 async def print_list(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     global game_created, game_datetime
@@ -261,6 +265,9 @@ async def register_player(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         await update.message.reply_text(f"@{username} has been added to the waiting list.")
     
     logger.info(f"Register player command used for @{username}")
+    
+    # Print the updated list to the group chat
+    await print_list_to_group(context)
 
 @private_chat_only
 async def remove_player(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -483,6 +490,7 @@ async def main():
         application.add_handler(CommandHandler("register", register))
         application.add_handler(CommandHandler("remove", remove))
         application.add_handler(CommandHandler("print_list", print_list))
+        application.add_handler(CommandHandler("print_list_to_group", print_list_to_group_command))
         application.add_handler(CommandHandler("approve", approve))
         application.add_handler(CommandHandler("create_game", create_game))
         application.add_handler(CommandHandler("clear_list", clear_list))
@@ -493,7 +501,7 @@ async def main():
         application.add_handler(CommandHandler("remove_player", remove_player))
         application.add_handler(CommandHandler("divide_teams", divide_teams))
         application.add_handler(ChatMemberHandler(send_welcome_message, ChatMemberHandler.CHAT_MEMBER))
-    
+
         await set_commands_with_retry(application.bot)
 
         if application.job_queue:
